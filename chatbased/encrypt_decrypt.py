@@ -1,6 +1,6 @@
 import struct
 import math
-
+import random
 def atbash(text):
     result = ''
     for char in text:
@@ -36,21 +36,52 @@ def vigenere(text, key, decrypt=False):
     return result
 
 def generate_keys():
-    p = 17
-    q = 11
+    
+   
+    def is_prime(num):
+        if num < 2:
+            return False
+        for i in range(2, int(num ** 0.5) + 1):
+            if num % i == 0:
+                return False
+        return True
+
+    primes = [i for i in range(11, 100) if is_prime(i)]
+    p = random.choice(primes)
+    q = random.choice([x for x in primes if x != p])
     n = p * q
     phi = (p - 1) * (q - 1)
-    e = 7
-    d = 23  # such that (e * d) % phi == 1
+    # Choose e coprime to phi
+    def gcd(a, b):
+        while b:
+            a, b = b, a % b
+        return a
+    e_choices = [3, 5, 17, 257, 65537]
+    e = next((x for x in e_choices if x < phi and gcd(x, phi) == 1), 3)
+
+    def modinv(a, m):
+       
+        m0, x0, x1 = m, 0, 1
+        while a > 1:
+            q = a // m
+            a, m = m, a % m
+            x0, x1 = x1 - q * x0, x0
+        return x1 % m0
+    d = modinv(e, phi)
     return (e, n), (d, n)
 
 def rsa_encrypt(text, public_key):
     e, n = public_key
-    return [pow(ord(char), e, n) for char in text]
+    cipher_ints = [pow(ord(char), e, n) for char in text]
+    
+    hex_str = ''.join(f'{c:08x}' for c in cipher_ints)
+    return hex_str
 
 def rsa_decrypt(cipher, private_key):
     d, n = private_key
-    return ''.join([chr(pow(c, d, n)) for c in cipher])
+    
+    cipher_ints = [int(cipher[i:i+8], 16) for i in range(0, len(cipher), 8)]
+    return ''.join([chr(pow(c, d, n)) for c in cipher_ints])
 
 
 def encrypt_message(msg, public_key, shift, vigkey):

@@ -37,6 +37,7 @@ class ChatApp:
         self.vigkey = ''
         self.public_key = None
         self.private_key = None
+        self.partner_public_key = None
 
     def start_server(self):
         self.setup_keys()
@@ -47,6 +48,7 @@ class ChatApp:
         self.socket.listen(1)
         self.chat_area.config(state='normal')
         self.chat_area.insert(tk.END, f"Server started at {host}:{port}\nWaiting for client...\n")
+        self.chat_area.insert(tk.END, f"private RSA key: {self.private_key}, public RSA key: {self.public_key}\n")
         self.chat_area.config(state='disabled')
 
         threading.Thread(target=self.accept_client, daemon=True).start()
@@ -57,6 +59,10 @@ class ChatApp:
         self.chat_area.config(state='normal')
         self.chat_area.insert(tk.END, f"Client connected from {addr}\n")
         self.chat_area.config(state='disabled')
+        # Exchange public keys
+        self.connection.send(str(self.public_key).encode())
+        partner_key_data = self.connection.recv(4096)
+        self.partner_public_key = eval(partner_key_data.decode())
         threading.Thread(target=self.receive_messages, daemon=True).start()
 
     def start_client(self):
@@ -69,7 +75,11 @@ class ChatApp:
             self.running = True
             self.chat_area.config(state='normal')
             self.chat_area.insert(tk.END, f"Connected to server at {server_ip}:{port}\n")
+            self.chat_area.insert(tk.END, f"private RSA key: {self.private_key}, public RSA key: {self.public_key}\n")
             self.chat_area.config(state='disabled')
+            partner_key_data = self.socket.recv(4096)
+            self.partner_public_key = eval(partner_key_data.decode())
+            self.socket.send(str(self.public_key).encode())
             threading.Thread(target=self.receive_messages, daemon=True).start()
         except Exception as e:
             messagebox.showerror("Connection Error", f"Could not connect to server: {e}")
@@ -82,7 +92,8 @@ class ChatApp:
     def send_message(self, event=None):
         msg = self.input_field.get()
         if msg and self.running:
-            cipher = encrypt_message(msg, self.public_key, self.shift, self.vigkey)
+            # Encrypt with partner's public key
+            cipher = encrypt_message(msg, self.partner_public_key, self.shift, self.vigkey)
             data = str(cipher).encode()
 
             if self.connection:  
@@ -100,7 +111,7 @@ class ChatApp:
                 encrypted = source.recv(4096)
                 if not encrypted:
                     break
-                cipher = eval(encrypted.decode())
+                cipher = encrypted.decode()
                 decrypted = decrypt_message(cipher, self.private_key, self.shift, self.vigkey)
                 self.display_message("Partner", decrypted)
             except Exception as e:

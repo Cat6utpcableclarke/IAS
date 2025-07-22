@@ -13,17 +13,21 @@ client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client.connect((server_ip, port))
 print(f"Connected to server at {server_ip}:{port}")
 
+
 public_key, private_key = generate_keys()
+partner_key_data = client.recv(4096)
+partner_public_key = eval(partner_key_data.decode())
+client.send(str(public_key).encode())
 
 while True:
     msg = input("You: ")
     print(f"hash:{md5(msg)}")
-    cipher = encrypt_message(msg, public_key, shift, vigkey)
+    cipher = encrypt_message(msg, partner_public_key, shift, vigkey)
     client.send(str(cipher).encode())
 
     encrypted = client.recv(4096)
     if not encrypted:
         break
-    cipher = eval(encrypted.decode())
+    cipher = encrypted.decode()
     decrypted = decrypt_message(cipher, private_key, shift, vigkey)
     print(f"Server: {decrypted}, hash:{md5(decrypted)}")
